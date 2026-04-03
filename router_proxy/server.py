@@ -29,6 +29,23 @@ class ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
 
 
+def read_stream_chunks(response, response_headers: dict[str, str]):
+    content_type = str(response_headers.get("Content-Type") or response_headers.get("content-type") or "").lower()
+    if "text/event-stream" in content_type:
+        while True:
+            line = response.readline()
+            if not line:
+                break
+            yield line
+        return
+
+    while True:
+        chunk = response.read(4096)
+        if not chunk:
+            break
+        yield chunk
+
+
 def make_handler(
     config: ProxyConfig,
     capture_writer: CaptureWriter,
@@ -109,10 +126,7 @@ def make_handler(
                         self.end_headers()
 
                         response_chunks: list[bytes] = []
-                        while True:
-                            chunk = response.read(65536)
-                            if not chunk:
-                                break
+                        for chunk in read_stream_chunks(response, response_headers):
                             response_chunks.append(chunk)
                             self.wfile.write(chunk)
                             self.wfile.flush()
