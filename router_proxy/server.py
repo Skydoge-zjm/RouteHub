@@ -46,6 +46,11 @@ def read_stream_chunks(response, response_headers: dict[str, str]):
         yield chunk
 
 
+def is_event_stream_response(response_headers: dict[str, str]) -> bool:
+    content_type = str(response_headers.get("Content-Type") or response_headers.get("content-type") or "").lower()
+    return "text/event-stream" in content_type
+
+
 def make_handler(
     config: ProxyConfig,
     capture_writer: CaptureWriter,
@@ -54,6 +59,7 @@ def make_handler(
 ):
     class RoutingProxyHandler(http.server.BaseHTTPRequestHandler):
         server_version = "RouterProxy/1.0"
+        protocol_version = "HTTP/1.1"
 
         def log_message(self, format: str, *values) -> None:
             sys.stdout.write(
@@ -119,16 +125,31 @@ def make_handler(
                     ) as response:
                         self.send_response(response.status)
                         response_headers = dict(response.headers.items())
+                        event_stream = is_event_stream_response(response_headers)
                         for key, value in response.headers.items():
                             if key.lower() in {"transfer-encoding", "connection", "server", "date"}:
                                 continue
+                            if event_stream and key.lower() == "content-length":
+                                continue
                             self.send_header(key, value)
+                        if event_stream:
+                            self.send_header("Transfer-Encoding", "chunked")
+                            self.send_header("Cache-Control", response_headers.get("Cache-Control", "no-cache"))
+                            self.send_header("X-Accel-Buffering", "no")
                         self.end_headers()
 
                         response_chunks: list[bytes] = []
                         for chunk in read_stream_chunks(response, response_headers):
                             response_chunks.append(chunk)
-                            self.wfile.write(chunk)
+                            if event_stream:
+                                self.wfile.write(f"{len(chunk):X}\r\n".encode("ascii"))
+                                self.wfile.write(chunk)
+                                self.wfile.write(b"\r\n")
+                            else:
+                                self.wfile.write(chunk)
+                            self.wfile.flush()
+                        if event_stream:
+                            self.wfile.write(b"0\r\n\r\n")
                             self.wfile.flush()
 
                         response_body = b"".join(response_chunks)
