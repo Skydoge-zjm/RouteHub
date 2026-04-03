@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Router Config Studio</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Router Config Studio</p>
+          <h1>Proxy configuration editor</h1>
+          <p class="lede">Edit routing, health checks, model mappings, and upstream priority.</p>
+        </div>
+        <div class="hero-panel">
+          <div class="metric">
+            <span class="metric-label">Config File</span>
+            <strong id="configPath">router_config.json</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Validation</span>
+            <strong id="validationState">Unknown</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Upstreams</span>
+            <strong id="upstreamCount">0</strong>
+          </div>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="nav-rail">
+          <button class="nav-link active" data-target="overview">Overview</button>
+          <button class="nav-link" data-target="log">Log</button>
+          <button class="nav-link" data-target="config">Config</button>
+          <button class="nav-link" data-target="healthcheck">Healthcheck</button>
+        </aside>
+
+        <section class="editor">
+          <div class="toolbar" id="pageToolbar">
+            <div class="overview-switcher toolbar-switcher" id="overviewSwitcher" role="tablist" aria-label="Overview views">
+              <button class="overview-tab active" data-overview-target="map" type="button">Map</button>
+              <button class="overview-tab" data-overview-target="stats" type="button">Stats</button>
+            </div>
+            <div class="actions" id="pageToolbarActions">
+              <button id="reloadRouteMapBtn" class="ghost" data-pages="overview">Reload Map</button>
+              <button id="reloadOverviewStatsBtn" class="ghost hidden" data-pages="overview">Reload Stats</button>
+              <button id="reloadLogBtn" class="ghost" data-pages="log">Reload Log</button>
+              <button id="reloadBtn" class="ghost" data-pages="config">Reload</button>
+              <button id="reloadServiceBtn" class="ghost" data-pages="config">Reload Service</button>
+              <button id="validateBtn" class="ghost" data-pages="config">Validate</button>
+              <button id="saveBtn" class="primary" data-pages="config">Save Config</button>
+            </div>
+          </div>
+
+          <section class="panel section-panel" id="section-overview">
+            <div class="overview-dashboard">
+              <section class="overview-pane" id="overview-pane-map">
+                <div class="route-map-shell">
+                  <div class="route-map-header">
+                    <div>
+                      <p class="section-kicker">Route Map</p>
+                    </div>
+                    <div class="route-map-legend">
+                      <span class="legend-item"><i class="legend-line healthy"></i>Healthy</span>
+                      <span class="legend-item"><i class="legend-line degraded"></i>Unhealthy</span>
+                      <span class="legend-item"><i class="legend-line circuit"></i>Circuit Open</span>
+                      <span class="legend-item"><i class="legend-line disabled"></i>Disabled</span>
+                    </div>
+                  </div>
+
+                  <div class="route-graph" id="routeGraph">
+                    <svg class="route-graph-svg" id="routeGraphSvg" aria-hidden="true"></svg>
+
+                    <div class="route-left-stack">
+                      <article class="route-node route-node-client">
+                        <h3>Client</h3>
+                      </article>
+
+                      <div class="route-stack-link">
+                        <span>HTTP request</span>
+                      </div>
+
+                      <article class="route-node route-node-router" id="routeRouterNode" tabindex="0">
+                        <h3>Router</h3>
+                        <div class="route-left-detail" role="tooltip">
+                          <div class="route-detail-cell">
+                            <span class="route-detail-label">Address</span>
+                            <strong id="routeRouterTitle">127.0.0.1:8330</strong>
+                          </div>
+                          <div class="route-detail-cell">
+                            <span class="route-detail-label">Mode</span>
+                            <strong id="routeModeLabel">strict_priority</strong>
+                          </div>
+                        </div>
+                      </article>
+                    </div>
+
+                    <div class="route-hub" id="routeHub">
+                      <span class="route-hub-dot"></span>
+                    </div>
+
+                    <div id="routeMapList" class="route-branch-list"></div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="overview-pane hidden" id="overview-pane-stats">
+                <div class="section-heading split">
+                  <div>
+                    <p class="section-kicker">Stats</p>
+                    <h2>Request summary</h2>
+                  </div>
+                  <div class="actions inline">
+                    <select id="statsRange">
+                      <option value="0">All time</option>
+                      <option value="3600">Last 1 hour</option>
+                      <option value="21600">Last 6 hours</option>
+                      <option value="86400" selected>Last 24 hours</option>
+                      <option value="604800">Last 7 days</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field">
+                  <span>Log file</span>
+                  <div id="statsLogPath" class="result-parsed">-</div>
+                </div>
+                <div class="section-heading compact">
+                  <h3>Summary by upstream</h3>
+                </div>
+                <div id="statsSummary" class="runtime-upstreams"></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="panel section-panel hidden" id="section-log">
+            <div class="control-stack">
+              <section class="dashboard-section">
+                <div class="section-heading split">
+                  <div>
+                    <p class="section-kicker">Log</p>
+                    <h2>Recent requests</h2>
+                  </div>
+                  <div class="actions inline">
+                    <select id="logRange">
+                      <option value="0">All time</option>
+                      <option value="3600">Last 1 hour</option>
+                      <option value="21600">Last 6 hours</option>
+                      <option value="86400" selected>Last 24 hours</option>
+                      <option value="604800">Last 7 days</option>
+                    </select>
+                  </div>
+                </div>
+                <div id="statsRecent" class="runtime-upstreams"></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="panel section-panel hidden" id="section-healthcheck">
+            <div class="control-stack">
+              <section class="dashboard-section">
+                <div class="section-heading">
+                  <p class="section-kicker">Healthcheck</p>
+                  <h2>Manual checks and test request</h2>
+                </div>
+                <div class="action-grid">
+                  <div class="action-card">
+                    <h3>Health check</h3>
+                    <label class="field">
+                      <span>Upstream</span>
+                      <select id="healthcheckUpstream"></select>
+                    </label>
+                    <div class="actions inline">
+                      <button id="runHealthcheckBtn" class="ghost">Run Selected</button>
+                      <button id="runAllHealthchecksBtn" class="ghost">Run All</button>
+                    </div>
+                  </div>
+                  <div class="action-card">
+                    <h3>Test request</h3>
+                    <label class="field">
+                      <span>Upstream</span>
+                      <select id="testUpstream"></select>
+                    </label>
+                    <label class="field">
+                      <span>Model</span>
+                      <input type="text" id="testModel" value="gpt-5.4" />
+                    </label>
+                    <label class="field">
+                      <span>Prompt</span>
+                      <textarea id="testPrompt" class="small-textarea">Reply with one short sentence confirming the upstream is working.</textarea>
+                    </label>
+                    <div class="actions inline">
+                      <button id="runTestRequestBtn" class="primary">Send Test Request</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="dashboard-section">
+                <div class="section-heading compact">
+                  <h3>Action result</h3>
+                </div>
+                <div class="result-summary" id="resultSummary">
+                  <div class="runtime-box">
+                    <span class="runtime-label">Status</span>
+                    <strong id="resultStatus">No action</strong>
+                  </div>
+                  <div class="runtime-box">
+                    <span class="runtime-label">Elapsed</span>
+                    <strong id="resultElapsed">-</strong>
+                  </div>
+                  <div class="runtime-box">
+                    <span class="runtime-label">Upstream</span>
+                    <strong id="resultUpstream">-</strong>
+                  </div>
+                  <div class="runtime-box">
+                    <span class="runtime-label">Parse Mode</span>
+                    <strong id="resultParseMode">-</strong>
+                  </div>
+                </div>
+                <div class="field">
+                  <span>Parsed output</span>
+                  <div id="resultParsed" class="result-parsed">No action run yet.</div>
+                </div>
+                <div class="field">
+                  <span>Raw result</span>
+                  <pre id="actionResult" class="result-box">No action run yet.</pre>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="panel section-panel hidden" id="section-config">
+            <div class="config-shell">
+              <div class="config-subnav" role="tablist" aria-label="Config sections">
+                <button class="config-tab active" data-config-target="global" type="button">Global</button>
+                <button class="config-tab" data-config-target="upstreams" type="button">Upstreams</button>
+                <button class="config-tab" data-config-target="raw" type="button">Raw JSON</button>
+              </div>
+
+              <section class="config-pane" id="config-pane-global">
+                <div class="config-stack config-global-stack">
+                  <section class="config-group config-card config-card-listen">
+                    <div class="section-heading">
+                      <p class="section-kicker">Listen</p>
+                      <h2>Proxy entrypoint</h2>
+                    </div>
+                    <div class="field-grid two config-form-grid config-form-grid-listen">
+                      <label class="field">
+                        <span>Host</span>
+                        <input type="text" id="listenHost" />
+                      </label>
+                      <label class="field">
+                        <span>Port</span>
+                        <input type="number" id="listenPort" />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section class="config-group config-card config-card-routing">
+                    <div class="section-heading">
+                      <p class="section-kicker">Routing</p>
+                      <h2>Failover policy</h2>
+                    </div>
+                    <div class="field-grid two config-form-grid config-form-grid-routing">
+                      <label class="field">
+                        <span>Mode</span>
+                        <select id="routingStrategy">
+                          <option value="strict_priority">Strict Priority</option>
+                          <option value="smart">Smart</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Connect Timeout (s)</span>
+                        <input type="number" id="connectTimeout" />
+                      </label>
+                      <label class="field">
+                        <span>Read Timeout (s)</span>
+                        <input type="number" id="readTimeout" />
+                      </label>
+                      <label class="field">
+                        <span>Circuit Threshold</span>
+                        <input type="number" id="circuitThreshold" />
+                      </label>
+                      <label class="field">
+                        <span>Circuit Cooldown (s)</span>
+                        <input type="number" id="circuitCooldown" />
+                      </label>
+                    </div>
+                    <label class="field config-field-wide">
+                      <span>Failover Status Codes</span>
+                      <input type="text" id="failoverStatuses" placeholder="408,429,500,502" />
+                    </label>
+                  </section>
+
+                  <section class="config-group config-card config-card-health">
+                    <div class="section-heading">
+                      <p class="section-kicker">Health</p>
+                      <h2>Background upstream checks</h2>
+                    </div>
+                    <div class="field-grid two config-form-grid config-form-grid-health">
+                      <label class="field checkbox config-checkbox-row config-checkbox-wide">
+                        <input type="checkbox" id="healthEnabled" />
+                        <span>Enable health checks</span>
+                      </label>
+                      <label class="field">
+                        <span>Interval (s)</span>
+                        <input type="number" id="healthInterval" />
+                      </label>
+                      <label class="field">
+                        <span>Timeout (s)</span>
+                        <input type="number" id="healthTimeout" />
+                      </label>
+                    </div>
+                    <label class="field config-field-wide">
+                      <span>Healthy Status Codes</span>
+                      <input type="text" id="healthyStatuses" placeholder="200,204,401,403,405" />
+                    </label>
+                  </section>
+                </div>
+              </section>
+
+              <section class="config-pane hidden" id="config-pane-upstreams">
+                <div class="config-stack">
+                  <section class="config-group">
+                <div class="section-heading split">
+                  <div>
+                    <p class="section-kicker">Upstreams</p>
+                    <h2>Source priority and model mapping</h2>
+                  </div>
+                  <button id="addUpstreamBtn" class="ghost">Add Upstream</button>
+                </div>
+                <div id="upstreamList" class="upstream-list"></div>
+                  </section>
+                </div>
+              </section>
+
+              <section class="config-pane hidden" id="config-pane-raw">
+                <div class="config-stack">
+                  <section class="config-group">
+                <div class="section-heading">
+                  <p class="section-kicker">Raw JSON</p>
+                  <h2>Direct edit fallback</h2>
+                </div>
+                <textarea id="rawEditor" spellcheck="false"></textarea>
+                  </section>
+                </div>
+              </section>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <template id="upstreamTemplate">
+      <article class="upstream-block">
+        <div class="upstream-header">
+          <div>
+            <p class="upstream-index"></p>
+            <h3>Upstream</h3>
+            <p class="upstream-summary"></p>
+          </div>
+          <div class="actions inline">
+            <button class="ghost toggle-upstream" type="button">Expand</button>
+            <button class="drag-handle ghost" type="button">Drag</button>
+            <button class="danger remove-upstream" type="button">Remove</button>
+          </div>
+        </div>
+        <div class="upstream-body">
+          <div class="field-grid two upstream-main-grid">
+            <label class="field">
+              <span>Name</span>
+              <input type="text" data-key="name" />
+            </label>
+            <label class="field">
+              <span>Base URL</span>
+              <input type="text" data-key="base_url" />
+            </label>
+            <label class="field">
+              <span>API Key</span>
+              <input type="text" data-key="api_key" />
+            </label>
+            <label class="field">
+              <span>Priority</span>
+              <input type="number" data-key="priority" />
+            </label>
+          </div>
+          <div class="field-grid two upstream-secondary-grid">
+            <label class="field">
+              <span>Healthcheck Path</span>
+              <input type="text" data-key="healthcheck_path" />
+            </label>
+            <div class="upstream-toggle-row">
+              <label class="field checkbox compact">
+                <input type="checkbox" data-key="enabled" />
+                <span>Enabled</span>
+              </label>
+              <label class="field checkbox compact">
+                <input type="checkbox" data-key="supports_stream" />
+                <span>Supports Stream</span>
+              </label>
+            </div>
+          </div>
+          <label class="field">
+            <span>Supported Models</span>
+            <input type="text" data-key="supported_models" placeholder="gpt-5.4,gpt-4.1-mini" />
+          </label>
+          <div class="mapping-panel">
+            <div class="mapping-header">
+              <span>Model Mappings</span>
+              <button class="ghost add-mapping" type="button">Add Mapping</button>
+            </div>
+            <div class="mapping-list"></div>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <template id="mappingTemplate">
+      <div class="mapping-row">
+        <input type="text" class="mapping-from" placeholder="incoming model" />
+        <span class="mapping-arrow">→</span>
+        <input type="text" class="mapping-to" placeholder="upstream model" />
+        <button class="danger remove-mapping" type="button">Remove</button>
+      </div>
+    </template>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

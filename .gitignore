@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local runtime data
+logs/
+captures/
+captures_test_off/
+captures_test_on/
+captures_mode_test/
+temp_reasoning_captures/
+temp_reasoning_captures_2/
+temp_stats_logs/
+temp_capture_logs/
+
+# Local config
+router_config.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/

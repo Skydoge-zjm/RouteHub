@@ -1,0 +1,37 @@
+{
+  "listen": {
+    "host": "127.0.0.1",
+    "port": 8330
+  },
+  "routing": {
+    "mode": "smart",
+    "connect_timeout_seconds": 10,
+    "read_timeout_seconds": 120,
+    "failover_statuses": [408, 409, 425, 429, 500, 502, 503, 504],
+    "circuit_breaker_threshold": 3,
+    "circuit_breaker_cooldown_seconds": 60,
+    "circuit_breaker_max_cooldown_multiplier": 8
+  },
+  "health": {
+    "enabled": true,
+    "interval_seconds": 30,
+    "timeout_seconds": 5,
+    "healthy_statuses": [200, 204, 401, 403, 405],
+    "fallback_to_test_request": true,
+    "fallback_test_model": "gpt-5.4",
+    "fallback_test_prompt": "Reply with OK."
+  },
+  "upstreams": [
+    {
+      "name": "primary-upstream",
+      "base_url": "replace-me",
+      "api_key": "replace-me",
+      "priority": 100,
+      "enabled": true,
+      "supports_stream": true,
+      "supported_models": [],
+      "model_map": {},
+      "healthcheck_path": "/v1/models"
+    }
+  ]
+}
