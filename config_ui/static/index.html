@@ -151,7 +151,16 @@
                       <option value="86400" selected>Last 24 hours</option>
                       <option value="604800">Last 7 days</option>
                     </select>
+                    <label class="field checkbox compact log-filter-toggle">
+                      <input type="checkbox" id="hideFallbackLogs" checked />
+                      <span>Hide Fallback Tests</span>
+                    </label>
                   </div>
+                </div>
+                <div class="log-pager">
+                  <button id="logPrevBtn" class="ghost" type="button">Prev</button>
+                  <div id="logPageInfo" class="log-page-info">Page 1</div>
+                  <button id="logNextBtn" class="ghost" type="button">Next</button>
                 </div>
                 <div id="statsRecent" class="runtime-upstreams"></div>
               </section>

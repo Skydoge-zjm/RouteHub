@@ -1,8 +1,11 @@
 const state = {
   config: null,
   expandedUpstreams: new Set(),
+  logPage: 1,
+  hideFallbackLogs: true,
 };
 const DEFAULT_LOG_RANGE_SECONDS = 86400;
+const LOG_PAGE_SIZE = 12;
 let nextUpstreamUiId = 1;
 
 const navLinks = [...document.querySelectorAll(".nav-link")];
@@ -31,6 +34,10 @@ const statsRecent = document.getElementById("statsRecent");
 const statsLogPath = document.getElementById("statsLogPath");
 const statsRange = document.getElementById("statsRange");
 const logRange = document.getElementById("logRange");
+const hideFallbackLogs = document.getElementById("hideFallbackLogs");
+const logPrevBtn = document.getElementById("logPrevBtn");
+const logNextBtn = document.getElementById("logNextBtn");
+const logPageInfo = document.getElementById("logPageInfo");
 const configTabs = [...document.querySelectorAll(".config-tab")];
 const configPanes = {
   global: document.getElementById("config-pane-global"),
@@ -801,7 +808,25 @@ function renderStats(payload, options = { summary: true, recent: true }) {
   }
 
   if (options.recent) {
-    const recentRecords = (payload.recent || []).slice(0, 12);
+    const allRecentRecords = (payload.recent || []).filter((record) => {
+      if (!state.hideFallbackLogs) {
+        return true;
+      }
+      return record.event_type !== "health_fallback_test";
+    });
+    const totalPages = Math.max(1, Math.ceil(allRecentRecords.length / LOG_PAGE_SIZE));
+    state.logPage = Math.min(state.logPage, totalPages);
+    const pageStart = (state.logPage - 1) * LOG_PAGE_SIZE;
+    const recentRecords = allRecentRecords.slice(pageStart, pageStart + LOG_PAGE_SIZE);
+    if (logPageInfo) {
+      logPageInfo.textContent = `Page ${state.logPage} / ${totalPages}`;
+    }
+    if (logPrevBtn) {
+      logPrevBtn.disabled = state.logPage <= 1;
+    }
+    if (logNextBtn) {
+      logNextBtn.disabled = state.logPage >= totalPages;
+    }
     if (!recentRecords.length) {
       statsRecent.innerHTML = '<div class="empty-state">No recent requests.</div>';
     } else {
@@ -989,7 +1014,31 @@ function bindControls() {
   }
   statsRange.addEventListener("change", loadStats);
   if (logRange) {
-    logRange.addEventListener("change", loadLog);
+    logRange.addEventListener("change", () => {
+      state.logPage = 1;
+      loadLog();
+    });
+  }
+  if (hideFallbackLogs) {
+    hideFallbackLogs.addEventListener("change", () => {
+      state.hideFallbackLogs = hideFallbackLogs.checked;
+      state.logPage = 1;
+      loadLog();
+    });
+  }
+  if (logPrevBtn) {
+    logPrevBtn.addEventListener("click", () => {
+      if (state.logPage > 1) {
+        state.logPage -= 1;
+        loadLog();
+      }
+    });
+  }
+  if (logNextBtn) {
+    logNextBtn.addEventListener("click", () => {
+      state.logPage += 1;
+      loadLog();
+    });
   }
   document.getElementById("reloadServiceBtn").addEventListener("click", reloadService);
   document.getElementById("validateBtn").addEventListener("click", validateConfig);

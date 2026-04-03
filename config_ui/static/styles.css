@@ -714,6 +714,33 @@ select:focus {
   background: rgba(119, 224, 181, 0.04);
 }
 
+.log-pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+  margin: -2px 0 12px;
+}
+
+.log-filter-toggle {
+  margin-bottom: 0;
+  min-height: 0;
+}
+
+.log-filter-toggle span {
+  font-size: 12px;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.log-page-info {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .recent-table td:last-child {
   max-width: 280px;
   overflow: hidden;
