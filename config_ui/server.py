@@ -34,7 +34,7 @@ def write_json(path: Path, payload: dict) -> None:
 class ConfigUIHandler(BaseHTTPRequestHandler):
     config_path: Path
     status_provider: Callable[[], dict] | None = None
-    stats_provider: Callable[[int | None], dict] | None = None
+    stats_provider: Callable[[int | None, bool, int, int], dict] | None = None
     reload_callback: Callable[[], None] | None = None
     healthcheck_callback: Callable[[str | None], dict] | None = None
     test_request_callback: Callable[[str, str, str], dict] | None = None
@@ -51,13 +51,35 @@ class ConfigUIHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/stats":
             since_seconds = None
+            hide_fallback_logs = False
+            page = 1
+            page_size = 100
             raw_since = parse_qs(parsed.query).get("since_seconds", [None])[0]
+            raw_hide_fallback = parse_qs(parsed.query).get("hide_fallback_logs", [None])[0]
+            raw_page = parse_qs(parsed.query).get("page", [None])[0]
+            raw_page_size = parse_qs(parsed.query).get("page_size", [None])[0]
             if raw_since not in (None, ""):
                 try:
                     since_seconds = int(raw_since)
                 except ValueError:
                     since_seconds = None
-            payload = self.stats_provider(since_seconds) if self.stats_provider else {"summary_by_upstream": {}, "recent": []}
+            if raw_hide_fallback not in (None, ""):
+                hide_fallback_logs = str(raw_hide_fallback).strip().lower() in {"1", "true", "yes", "on"}
+            if raw_page not in (None, ""):
+                try:
+                    page = int(raw_page)
+                except ValueError:
+                    page = 1
+            if raw_page_size not in (None, ""):
+                try:
+                    page_size = int(raw_page_size)
+                except ValueError:
+                    page_size = 100
+            payload = (
+                self.stats_provider(since_seconds, hide_fallback_logs, page, page_size)
+                if self.stats_provider
+                else {"summary_by_upstream": {}, "recent": []}
+            )
             self._send_json(HTTPStatus.OK, payload)
             return
         if parsed.path == "/api/validate":
@@ -201,7 +223,7 @@ class ConfigUIHandler(BaseHTTPRequestHandler):
 def build_handler(
     config_path: Path,
     status_provider: Callable[[], dict] | None = None,
-    stats_provider: Callable[[int | None], dict] | None = None,
+    stats_provider: Callable[[int | None, bool, int, int], dict] | None = None,
     reload_callback: Callable[[], None] | None = None,
     healthcheck_callback: Callable[[str | None], dict] | None = None,
     test_request_callback: Callable[[str, str, str], dict] | None = None,
@@ -252,7 +274,7 @@ def create_ui_server(
     port: int,
     config_path: Path,
     status_provider: Callable[[], dict] | None = None,
-    stats_provider: Callable[[int | None], dict] | None = None,
+    stats_provider: Callable[[int | None, bool, int, int], dict] | None = None,
     reload_callback: Callable[[], None] | None = None,
     healthcheck_callback: Callable[[str | None], dict] | None = None,
     test_request_callback: Callable[[str, str, str], dict] | None = None,

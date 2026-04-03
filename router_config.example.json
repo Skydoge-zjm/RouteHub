@@ -14,7 +14,7 @@
   },
   "health": {
     "enabled": true,
-    "interval_seconds": 30,
+    "interval_seconds": 120,
     "timeout_seconds": 5,
     "healthy_statuses": [200, 204, 401, 403, 405],
     "fallback_to_test_request": true,

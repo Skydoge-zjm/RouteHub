@@ -148,15 +148,28 @@ class StatsLogger:
                     continue
         return records
 
-    def read_recent(self, limit: int = 100, since_timestamp: float | None = None) -> list[dict]:
-        records = []
+    def read_recent_page(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 100,
+        since_timestamp: float | None = None,
+        exclude_event_types: set[str] | None = None,
+    ) -> tuple[list[dict], int]:
+        filtered_records = []
         for record in reversed(self._iter_records()):
             if since_timestamp is not None and float(record.get("timestamp") or 0) < since_timestamp:
                 continue
-            records.append(record)
-            if len(records) >= limit:
-                break
-        return records
+            if exclude_event_types and str(record.get("event_type") or "") in exclude_event_types:
+                continue
+            filtered_records.append(record)
+
+        total = len(filtered_records)
+        safe_page = max(1, page)
+        safe_page_size = max(1, page_size)
+        start = (safe_page - 1) * safe_page_size
+        end = start + safe_page_size
+        return filtered_records[start:end], total
 
     def summary_by_upstream(self, since_timestamp: float | None = None) -> dict[str, dict]:
         summary: dict[str, dict] = {}

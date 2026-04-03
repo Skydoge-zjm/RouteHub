@@ -389,15 +389,43 @@ class RouterProxyRuntime:
                 "upstreams": upstreams,
             }
 
-    def snapshot_stats(self, since_seconds: int | None = None) -> dict:
+    def snapshot_stats(
+        self,
+        since_seconds: int | None = None,
+        hide_fallback_logs: bool = False,
+        page: int = 1,
+        page_size: int = 100,
+    ) -> dict:
         with self._lock:
             since_timestamp = None
             if since_seconds and since_seconds > 0:
                 since_timestamp = time.time() - since_seconds
+            exclude_event_types = {"health_fallback_test"} if hide_fallback_logs else None
+            safe_page_size = max(1, page_size)
+            _, total = self.stats_logger.read_recent_page(
+                page=1,
+                page_size=safe_page_size,
+                since_timestamp=since_timestamp,
+                exclude_event_types=exclude_event_types,
+            )
+            total_pages = max(1, (total + safe_page_size - 1) // safe_page_size)
+            safe_page = min(max(1, page), total_pages)
+            recent, _ = self.stats_logger.read_recent_page(
+                page=safe_page,
+                page_size=safe_page_size,
+                since_timestamp=since_timestamp,
+                exclude_event_types=exclude_event_types,
+            )
             return {
                 "log_path": self.stats_logger.describe_path(),
                 "summary_by_upstream": self.stats_logger.summary_by_upstream(since_timestamp=since_timestamp),
-                "recent": self.stats_logger.read_recent(limit=50, since_timestamp=since_timestamp),
+                "recent": recent,
+                "recent_pagination": {
+                    "page": safe_page,
+                    "page_size": safe_page_size,
+                    "total": total,
+                    "total_pages": total_pages,
+                },
             }
 
     def run_health_checks(self, upstream_name: str | None = None) -> dict:

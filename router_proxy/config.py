@@ -47,7 +47,7 @@ def default_config_dict() -> dict:
         },
         "health": {
             "enabled": True,
-            "interval_seconds": 30,
+            "interval_seconds": 120,
             "timeout_seconds": 5,
             "healthy_statuses": [200, 204, 401, 403, 405],
             "fallback_to_test_request": True,
@@ -91,7 +91,7 @@ def _parse_routing(data: dict) -> RoutingConfig:
 def _parse_health(data: dict) -> HealthConfig:
     return HealthConfig(
         enabled=bool(data.get("enabled", True)),
-        interval_seconds=int(data.get("interval_seconds", 30)),
+        interval_seconds=int(data.get("interval_seconds", 120)),
         timeout_seconds=int(data.get("timeout_seconds", 5)),
         healthy_statuses=[int(value) for value in data.get("healthy_statuses", [200, 204, 401, 403, 405])],
         fallback_to_test_request=bool(data.get("fallback_to_test_request", True)),

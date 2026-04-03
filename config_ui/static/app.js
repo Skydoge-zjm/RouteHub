@@ -297,7 +297,7 @@ function fillForm() {
   document.getElementById("failoverStatuses").value = (routing.failover_statuses || []).join(", ");
 
   document.getElementById("healthEnabled").checked = Boolean(health.enabled);
-  document.getElementById("healthInterval").value = health.interval_seconds ?? 30;
+  document.getElementById("healthInterval").value = health.interval_seconds ?? 120;
   document.getElementById("healthTimeout").value = health.timeout_seconds ?? 5;
   document.getElementById("healthyStatuses").value = (health.healthy_statuses || []).join(", ");
 
@@ -347,7 +347,7 @@ function collectForm() {
     },
     health: {
       enabled: document.getElementById("healthEnabled").checked,
-      interval_seconds: Number(document.getElementById("healthInterval").value || 30),
+      interval_seconds: Number(document.getElementById("healthInterval").value || 120),
       timeout_seconds: Number(document.getElementById("healthTimeout").value || 5),
       healthy_statuses: parseNumberList(document.getElementById("healthyStatuses").value),
     },
@@ -808,24 +808,21 @@ function renderStats(payload, options = { summary: true, recent: true }) {
   }
 
   if (options.recent) {
-    const allRecentRecords = (payload.recent || []).filter((record) => {
-      if (!state.hideFallbackLogs) {
-        return true;
-      }
-      return record.event_type !== "health_fallback_test";
-    });
-    const totalPages = Math.max(1, Math.ceil(allRecentRecords.length / LOG_PAGE_SIZE));
-    state.logPage = Math.min(state.logPage, totalPages);
-    const pageStart = (state.logPage - 1) * LOG_PAGE_SIZE;
-    const recentRecords = allRecentRecords.slice(pageStart, pageStart + LOG_PAGE_SIZE);
+    const allRecentRecords = payload.recent || [];
+    const pagination = payload.recent_pagination || {};
+    const totalPages = Math.max(1, Number(pagination.total_pages) || 1);
+    const currentPage = Math.min(Math.max(1, Number(pagination.page) || state.logPage), totalPages);
+    const totalRecords = Math.max(0, Number(pagination.total) || 0);
+    state.logPage = currentPage;
+    const recentRecords = allRecentRecords;
     if (logPageInfo) {
-      logPageInfo.textContent = `Page ${state.logPage} / ${totalPages}`;
+      logPageInfo.textContent = `Page ${currentPage} / ${totalPages} (${totalRecords})`;
     }
     if (logPrevBtn) {
-      logPrevBtn.disabled = state.logPage <= 1;
+      logPrevBtn.disabled = currentPage <= 1;
     }
     if (logNextBtn) {
-      logNextBtn.disabled = state.logPage >= totalPages;
+      logNextBtn.disabled = currentPage >= totalPages;
     }
     if (!recentRecords.length) {
       statsRecent.innerHTML = '<div class="empty-state">No recent requests.</div>';
@@ -879,7 +876,13 @@ async function loadStats() {
 
 async function loadLog() {
   const sinceSeconds = Number(logRange?.value || DEFAULT_LOG_RANGE_SECONDS);
-  const response = await fetch(`/api/stats?since_seconds=${sinceSeconds}`);
+  const params = new URLSearchParams({
+    since_seconds: String(sinceSeconds),
+    hide_fallback_logs: state.hideFallbackLogs ? "1" : "0",
+    page: String(state.logPage),
+    page_size: String(LOG_PAGE_SIZE),
+  });
+  const response = await fetch(`/api/stats?${params.toString()}`);
   const payload = await response.json();
   renderStats(payload, { summary: false, recent: true });
 }

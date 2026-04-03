@@ -25,7 +25,7 @@ class RoutingConfig:
 @dataclass(slots=True)
 class HealthConfig:
     enabled: bool = True
-    interval_seconds: int = 30
+    interval_seconds: int = 120
     timeout_seconds: int = 5
     healthy_statuses: list[int] = field(default_factory=lambda: [200, 204, 401, 403, 405])
     fallback_to_test_request: bool = True
