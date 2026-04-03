@@ -5,8 +5,12 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv-build/
 venv/
 env/
+build/
+dist/
+*.spec
 
 # Local runtime data
 logs/

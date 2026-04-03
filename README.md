@@ -1,6 +1,8 @@
-# OpenAI-Compatible Router Proxy
+# RouteHub
 
-这是一个本地 OpenAI-compatible 路由代理项目，提供：
+![App Icon](config_ui/static/icons/icon.png)
+
+RouteHub 是一个本地 OpenAI-compatible 路由代理项目，提供：
 
 - 统一本地代理入口
 - 多上游路由与失败切换

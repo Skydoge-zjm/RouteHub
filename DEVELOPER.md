@@ -1,4 +1,4 @@
-# Developer Guide
+# RouteHub Developer Guide
 
 本文档面向维护这个项目的开发者，描述当前模块结构、配置路径策略、状态机和主要数据流。
 
@@ -401,6 +401,49 @@ hover 详情会显示：
 
 - 给 stats / log 增加更强筛选
 - 提供更清晰的健康历史时间线
+
+## EXE 打包
+
+当前项目已经补了适合 PyInstaller 的基础设施：
+
+- `service_entry.py`
+  - 作为 exe 入口
+- `config_ui/server.py`
+  - 已兼容 frozen 环境下的静态资源路径
+- `build-exe.ps1`
+  - Windows 打包脚本
+- `config_ui/static/icons/app-icon.svg`
+  - 前端 favicon / README 图标
+
+### 构建命令
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-exe.ps1
+```
+
+可选：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-exe.ps1 -OneDir
+```
+
+如果存在：
+
+- `config_ui/static/icons/app-icon.ico`
+
+打包脚本会自动把它作为 Windows exe 图标传给 PyInstaller。
+
+### 当前已知构建阻塞
+
+当前环境如果直接跑 PyInstaller，存在一个外部环境问题：
+
+- Anaconda 环境里安装了第三方 `pathlib` 回溯包
+- 这个包和 PyInstaller 不兼容
+
+解决方式通常是：
+
+- 用干净的 Python 虚拟环境构建
+- 或从当前环境移除第三方 `pathlib`
 
 ## 维护建议
 

@@ -10,9 +10,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from typing import Callable
 
-ROOT = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    ROOT = Path(sys._MEIPASS) / "config_ui"
+else:
+    ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
-sys.path.insert(0, str(ROOT.parent))
+if not getattr(sys, "frozen", False):
+    sys.path.insert(0, str(ROOT.parent))
 
 from router_proxy.config import DEFAULT_CONFIG_PATH, ensure_config_file, load_config
 
