@@ -527,6 +527,11 @@ function drawRouteGraphLines() {
     const currentRouterCenterY = initialRouterRect.top - initialGraphRect.top + initialRouterRect.height / 2;
     const routerOffsetY = desiredRouterCenterY - currentRouterCenterY;
     routeLeftStack.style.transform = `translateY(${Math.round(routerOffsetY)}px)`;
+    routeHub.style.alignSelf = "start";
+    routeHub.style.transform = `translateY(${Math.round(desiredRouterCenterY - routeHub.offsetHeight / 2)}px)`;
+  } else {
+    routeHub.style.alignSelf = "";
+    routeHub.style.transform = "";
   }
 
   const graphRect = routeGraph.getBoundingClientRect();
