@@ -15,6 +15,13 @@ RouteHub 是一个本地 OpenAI-compatible 路由代理项目，提供：
 - 路由代理：`http://127.0.0.1:8330`
 - 管理控制台：`http://127.0.0.1:8340`
 
+代理状态查询示例：
+
+- `GET http://127.0.0.1:8330/status`
+- `GET http://127.0.0.1:8330/status?upstream=primary-upstream`
+
+当传入 `upstream` 或 `upstream_name` 时，代理会从 Recent requests 对应 upstream 的最新一条记录中返回状态信息，并将该条记录的状态码同时作为 HTTP 响应码返回。
+
 ## 启动
 
 Windows:

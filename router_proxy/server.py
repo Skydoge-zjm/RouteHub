@@ -7,7 +7,9 @@ import sys
 import threading
 import time
 import urllib.error
+import json
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 from .capture import CaptureMode, CaptureWriter, utc_timestamp
 from .config import DEFAULT_CONFIG_PATH, load_config, user_data_dir
@@ -29,18 +31,9 @@ class ThreadingHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
 
 
-def read_stream_chunks(response, response_headers: dict[str, str]):
-    content_type = str(response_headers.get("Content-Type") or response_headers.get("content-type") or "").lower()
-    if "text/event-stream" in content_type:
-        while True:
-            line = response.readline()
-            if not line:
-                break
-            yield line
-        return
-
+def read_stream_chunks(response, chunk_size: int = 16384):
     while True:
-        chunk = response.read(4096)
+        chunk = response.read(chunk_size)
         if not chunk:
             break
         yield chunk
@@ -81,6 +74,9 @@ def make_handler(
             self._handle_request()
 
         def _handle_request(self) -> None:
+            if self.command == "GET" and self._handle_status_request():
+                return
+
             request_id = utc_timestamp()
             length = int(self.headers.get("Content-Length", "0") or "0")
             body = self.rfile.read(length) if length > 0 else b""
@@ -127,29 +123,31 @@ def make_handler(
                         response_headers = dict(response.headers.items())
                         event_stream = is_event_stream_response(response_headers)
                         for key, value in response.headers.items():
-                            if key.lower() in {"transfer-encoding", "connection", "server", "date"}:
+                            key_lower = key.lower()
+                            if key_lower in {"server", "date"}:
                                 continue
-                            if event_stream and key.lower() == "content-length":
+                            if event_stream and key_lower in {"content-length", "transfer-encoding", "connection"}:
+                                continue
+                            if not event_stream and key_lower in {"transfer-encoding", "connection"}:
                                 continue
                             self.send_header(key, value)
                         if event_stream:
-                            self.send_header("Transfer-Encoding", "chunked")
                             self.send_header("Cache-Control", response_headers.get("Cache-Control", "no-cache"))
                             self.send_header("X-Accel-Buffering", "no")
+                            self.close_connection = True
                         self.end_headers()
 
                         response_chunks: list[bytes] = []
-                        for chunk in read_stream_chunks(response, response_headers):
-                            response_chunks.append(chunk)
-                            if event_stream:
-                                self.wfile.write(f"{len(chunk):X}\r\n".encode("ascii"))
-                                self.wfile.write(chunk)
-                                self.wfile.write(b"\r\n")
-                            else:
-                                self.wfile.write(chunk)
-                            self.wfile.flush()
-                        if event_stream:
-                            self.wfile.write(b"0\r\n\r\n")
+                        capture_limit = 1024 * 1024 if event_stream else None
+                        captured_size = 0
+                        for chunk in read_stream_chunks(response):
+                            if capture_limit is None:
+                                response_chunks.append(chunk)
+                            elif captured_size < capture_limit:
+                                remaining = capture_limit - captured_size
+                                response_chunks.append(chunk[:remaining])
+                                captured_size += len(response_chunks[-1])
+                            self.wfile.write(chunk)
                             self.wfile.flush()
 
                         response_body = b"".join(response_chunks)
@@ -239,6 +237,62 @@ def make_handler(
                 return
             self._send_plain_error(502, detail)
 
+        def _handle_status_request(self) -> bool:
+            parsed = urlsplit(self.path)
+            if parsed.path not in {"/status", "/api/status"}:
+                return False
+
+            query = parse_qs(parsed.query)
+            upstream_name = (
+                (query.get("upstream", [""])[0] or "")
+                or (query.get("upstream_name", [""])[0] or "")
+            ).strip()
+            payload = {
+                "ok": True,
+                "running": True,
+                "listen": {"host": config.listen.host, "port": config.listen.port},
+            }
+            if upstream_name:
+                upstream = next((item for item in config.upstreams if item.name == upstream_name), None)
+                if not upstream:
+                    self._send_json(
+                        404,
+                        {"ok": False, "error": f"Unknown upstream: {upstream_name}", "upstream": upstream_name},
+                    )
+                    return True
+
+                latest = stats_logger.latest_record(upstream_name=upstream_name) if stats_logger else None
+                latest_status = latest.get("status") if latest else None
+                payload.update(
+                    {
+                        "upstream": upstream_name,
+                        "enabled": upstream.enabled,
+                        "base_url": upstream.base_url,
+                        "latest_status": latest_status,
+                        "latest_success": latest.get("success") if latest else None,
+                        "latest_event_type": latest.get("event_type") if latest else None,
+                        "latest_request_path": latest.get("request_path") if latest else None,
+                        "latest_error": latest.get("error") if latest else None,
+                        "latest_elapsed_ms": latest.get("elapsed_ms") if latest else None,
+                        "latest_timestamp": latest.get("timestamp") if latest else None,
+                    }
+                )
+                response_status = latest_status if isinstance(latest_status, int) and 100 <= latest_status <= 599 else 200
+                self._send_json(response_status, payload)
+                return True
+            else:
+                payload["upstreams"] = [
+                    {
+                        "name": upstream.name,
+                        "enabled": upstream.enabled,
+                        "base_url": upstream.base_url,
+                    }
+                    for upstream in sorted(config.upstreams, key=lambda item: item.priority, reverse=True)
+                ]
+
+            self._send_json(200, payload)
+            return True
+
         def _relay_error(self, status: int, headers: dict[str, str], body: bytes) -> None:
             self.send_response(status)
             for key, value in headers.items():
@@ -257,6 +311,15 @@ def make_handler(
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
+            self.wfile.flush()
+
+        def _send_json(self, status: int, payload: dict) -> None:
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             self.wfile.flush()
 
     return RoutingProxyHandler

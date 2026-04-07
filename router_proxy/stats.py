@@ -211,3 +211,17 @@ class StatsLogger:
             item["avg_elapsed_ms"] = round(item["_elapsed_sum"] / count)
             del item["_elapsed_sum"]
         return summary
+
+    def latest_record(
+        self,
+        *,
+        upstream_name: str | None = None,
+        event_type: str | None = None,
+    ) -> dict | None:
+        for record in reversed(self._iter_records()):
+            if upstream_name and str(record.get("upstream_name") or "") != upstream_name:
+                continue
+            if event_type and str(record.get("event_type") or "") != event_type:
+                continue
+            return record
+        return None
